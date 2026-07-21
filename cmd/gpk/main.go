@@ -9,6 +9,7 @@ import (
 	"github.com/mattn/go-isatty"
 
 	"github.com/neur0map/glazepkg/internal/cli"
+	"github.com/neur0map/glazepkg/internal/inventory"
 	"github.com/neur0map/glazepkg/internal/manager"
 	"github.com/neur0map/glazepkg/internal/ui"
 	"github.com/neur0map/glazepkg/internal/updater"
@@ -29,6 +30,11 @@ func main() {
 		case "update":
 			runUpdate()
 			return
+		case "tools":
+			if len(os.Args) == 2 && isatty.IsTerminal(os.Stdout.Fd()) {
+				runInventoryTUI()
+				return
+			}
 		}
 		args := os.Args[1:]
 		if opArgs, ok := cli.TranslateOps(args); ok {
@@ -68,6 +74,18 @@ func runUpdate() {
 	fmt.Printf("updated: %s → %s\n", version, newVersion)
 }
 
+func runInventoryTUI() {
+	cfg := inventory.Config{
+		PathValue:   os.Getenv("PATH"),
+		CatalogPath: os.Getenv("GPK_INVENTORY_CATALOG"),
+	}
+	p := tea.NewProgram(ui.NewInventoryModel(version, cfg), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func printHelp() {
 	tty := isatty.IsTerminal(os.Stdout.Fd())
 	var bold, cyan, yellow, dim, reset string
@@ -105,6 +123,7 @@ func printHelp() {
 	fmt.Printf("  %s %s\n", cmd("gpk <subcommand> ...", 24), "Run a headless command")
 	fmt.Printf("  %s %s\n", cmd("gpk update", 24), "Self-update to latest release")
 	fmt.Printf("  %s %s\n", cmd("gpk completion <sh>", 24), "Print a bash/zsh/fish completion script")
+	fmt.Printf("  %s %s\n", cmd("gpk tools", 24), "Browse PATH and self-made CLIs (read-only)")
 	fmt.Printf("  %s %s\n", cmd("gpk -h, --help", 24), "Show this help")
 	fmt.Println()
 
@@ -119,6 +138,7 @@ func printHelp() {
 	fmt.Printf("  %s %s\n", cmd("installed <pkg>...", 24), "Check if packages are installed (exit 0/2)")
 	fmt.Printf("  %s %s\n", cmd("managers", 24), "Show which managers are detected, with counts")
 	fmt.Printf("  %s %s\n", cmd("export [-o file]", 24), "Dump installed packages for backup/migration")
+	fmt.Printf("  %s %s\n", cmd("tools [list|search|info]", 24), "Browse PATH/catalog commands (read-only)")
 	fmt.Println()
 
 	fmt.Printf("%s %s\n", section("COMMANDS"), muted("· write"))

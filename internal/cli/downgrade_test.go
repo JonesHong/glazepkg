@@ -28,7 +28,7 @@ func TestDowngradeExplicitVersion(t *testing.T) {
 		scanFn: func() ([]model.Package, error) {
 			return []model.Package{fakePackage("foo", "2.0", model.SourcePacman)}, nil
 		},
-		installVersionFn: func(n, v string) *exec.Cmd { return exec.Command("/bin/true", n, v) },
+		installVersionFn: func(n, v string) *exec.Cmd { return exec.Command("true", n, v) },
 	}
 	var out, errOut bytes.Buffer
 	code := Dispatch([]string{"downgrade", "foo@1.0", "--manager", "pacman", "--dry-run"}, []manager.Manager{fake}, "test", &out, &errOut, nil)

@@ -39,7 +39,7 @@ func TestImportSkipsInstalled(t *testing.T) {
 			scanFn: func() ([]model.Package, error) {
 				return []model.Package{fakePackage("git", "2.43", model.SourcePacman)}, nil
 			},
-			installCmdFn: func(n string) *exec.Cmd { return exec.Command("/bin/true", "install", n) },
+			installCmdFn: func(n string) *exec.Cmd { return exec.Command("true", "install", n) },
 		},
 	}
 	file := filepath.Join(t.TempDir(), "pkgs.txt")

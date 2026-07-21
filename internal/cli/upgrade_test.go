@@ -21,7 +21,7 @@ func upgradeFakeMgrs() []manager.Manager {
 				}, nil
 			},
 			upgradeCmdFn: func(name string) *exec.Cmd {
-				return exec.Command("/bin/true", "upgrade", name)
+				return exec.Command("true", "upgrade", name)
 			},
 		},
 		&fakeManager{
@@ -30,7 +30,7 @@ func upgradeFakeMgrs() []manager.Manager {
 				return []model.Package{fakePackage("git", "2.43", model.SourceBrew)}, nil
 			},
 			upgradeCmdFn: func(name string) *exec.Cmd {
-				return exec.Command("/bin/true", "upgrade", name)
+				return exec.Command("true", "upgrade", name)
 			},
 		},
 	}
@@ -57,7 +57,7 @@ func TestUpgradeAllExecutes(t *testing.T) {
 		name: model.SourcePacman, available: true,
 		upgradeAllCmdFn: func(yes bool) *exec.Cmd {
 			ran = append(ran, "pacman")
-			return exec.Command("/bin/true", "-Syu")
+			return exec.Command("true", "-Syu")
 		},
 	}
 	var out, errOut bytes.Buffer
@@ -172,11 +172,11 @@ func TestUpgradeYesUsesNonInteractive(t *testing.T) {
 		},
 		upgradeCmdFn: func(name string) *exec.Cmd {
 			capturedInteractive = name
-			return exec.Command("/bin/true", "interactive", name)
+			return exec.Command("true", "interactive", name)
 		},
 		upgradeCmdYesFn: func(name string) *exec.Cmd {
 			capturedNI = name
-			return exec.Command("/bin/true", "noninteractive", name)
+			return exec.Command("true", "noninteractive", name)
 		},
 	}
 	var out, errOut bytes.Buffer

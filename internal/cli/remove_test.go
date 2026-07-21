@@ -21,7 +21,7 @@ func removeFakeMgrs() []manager.Manager {
 				}, nil
 			},
 			removeCmdFn: func(name string) *exec.Cmd {
-				return exec.Command("/bin/true", "remove", name)
+				return exec.Command("true", "remove", name)
 			},
 		},
 		&fakeManager{
@@ -30,7 +30,7 @@ func removeFakeMgrs() []manager.Manager {
 				return []model.Package{fakePackage("git", "2.43", model.SourceBrew)}, nil
 			},
 			removeCmdFn: func(name string) *exec.Cmd {
-				return exec.Command("/bin/true", "uninstall", name)
+				return exec.Command("true", "uninstall", name)
 			},
 		},
 	}
@@ -130,7 +130,7 @@ func TestRemoveRequiredByWarning(t *testing.T) {
 			return []model.Package{p}, nil
 		},
 		removeCmdFn: func(name string) *exec.Cmd {
-			return exec.Command("/bin/true", name)
+			return exec.Command("true", name)
 		},
 	}
 	var out, errOut bytes.Buffer

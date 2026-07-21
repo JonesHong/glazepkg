@@ -44,7 +44,7 @@ func TestUndoExecutesAndPops(t *testing.T) {
 	})
 	fake := &fakeManager{
 		name: model.SourcePacman, available: true,
-		removeCmdFn: func(n string) *exec.Cmd { return exec.Command("/bin/true", "remove", n) },
+		removeCmdFn: func(n string) *exec.Cmd { return exec.Command("true", "remove", n) },
 	}
 	var out, errOut bytes.Buffer
 	code := Dispatch([]string{"undo", "--yes", "--quiet"}, []manager.Manager{fake}, "test", &out, &errOut, nil)

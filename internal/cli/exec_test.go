@@ -151,7 +151,7 @@ func TestUseStableLocale(t *testing.T) {
 }
 
 func TestHeadlessExecSetsUserEnv(t *testing.T) {
-	cmd := exec.Command("/bin/true")
+	cmd := exec.Command("true")
 	if err := headlessExec(cmd); err != nil {
 		t.Fatalf("run: %v", err)
 	}

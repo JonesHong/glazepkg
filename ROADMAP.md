@@ -43,6 +43,8 @@ Arch and other Linux, macOS, and Windows. The same commands work everywhere. gpk
 - Tidy up: remove orphaned dependencies (`gpk autoremove`) and clear caches (`gpk clean`).
 - Hold a package so upgrades skip it (`gpk hold` / `gpk unhold`), and undo the last action (`gpk undo`, with `gpk history`).
 - Preview an install before it runs: the dependencies it pulls in and the download/installed size (`gpk install`, pacman).
+- Browse third-party, PATH, and self-made commands without mutation (`gpk tools`).
+- Import generic command metadata from a schema-versioned catalog manifest.
 
 ## What needs work first
 
@@ -60,6 +62,12 @@ Still on the list, roughly in order:
    - Make search quick by keeping a local index, instead of waiting on each tool every time.
 
 2. **Proper nix support.** On NixOS, installing should add the package to your configuration and rebuild, which is how NixOS is meant to work, with a quick way to just try something without keeping it. The current method uses an older command that does not fit flake-based systems. The compatibility table is also out of date for nix and needs to match the code.
+
+The command inventory is deliberately a separate read-only plane. It scans the
+effective PATH, joins optional catalog metadata by path, and shares GPK's TUI
+visual language without inheriting package install/remove actions. navi/tldr
+integration and automatic command help probing remain future work until they
+have bounded execution and cancellation.
 
 ## Familiar commands
 

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "executables": [
+    {
+      "name": "my-cli",
+      "path": "/path/to/my-cli",
+      "source": "manual",
+      "kind": "third-party",
+      "category": "productivity",
+      "purpose": "Example command maintained outside a package manager",
+      "examples": ["my-cli status", "my-cli --help"],
+      "tags": ["manual", "example"]
+    }
+  ],
+  "workshop_entrypoints": [
+    {
+      "name": "workshop:station/example",
+      "path": "/path/to/workshop/station/example.py",
+      "source": "workshop",
+      "kind": "self-made",
+      "category": "workshop",
+      "purpose": "Example self-made entrypoint"
+    }
+  ],
+  "packages": {}
+}

@@ -32,6 +32,23 @@ Every operation `gpk` exposes maps to one Go interface in `internal/manager/`. A
 | Theme picker | `t` | _(N/A)_ | reads `~/.config/glazepkg/themes/*.toml` | universal |
 | User notes (custom descriptions) | `e` in detail | _(TUI-only in Phase 1)_ | persists to `~/.local/share/glazepkg/notes.json` | universal |
 
+## Read-only command inventory
+
+The command inventory is intentionally separate from the 43 package-manager
+providers above. `gpk tools` uses `inventory.Provider` implementations rather
+than `manager.Manager`, so PATH and catalog records cannot inherit package
+mutation capabilities.
+
+| Provider | Platform | Scan | Execute during scan | Install/upgrade/remove | Cache |
+|---|---|---:|---:|---:|---|
+| `path` | macOS / Linux / Windows | ✓ | ─ | ─ | `cache/inventory.json` |
+| `catalog` | cross-platform JSON | ✓ | ─ | ─ | merged into inventory cache |
+
+The PATH provider uses first-wins precedence. Catalog metadata joins only by
+normalized location; name-only joins are rejected. Use `gpk tools list --json`
+or `gpk tools info <name> --json` to inspect `kind`, `provider`, `origin`,
+`location`, `available`, `examples`, and `tags`.
+
 **Note on `--yes`:** the headless `--yes` flag works correctly for **all 38 manager-capable tools** even though only 5 implement the explicit `NonInteractive*` interfaces. The other 33 either don't prompt by default (brew, cargo, npm, etc.) or already include their non-interactive flag in the regular command (apt has `-y` baked in, winget has `--disable-interactivity`, etc.). The 5 with explicit `*Yes` variants are the ones whose standard command does prompt: **pacman, aur, apt, dnf, chocolatey**.
 
 ## Capability matrix

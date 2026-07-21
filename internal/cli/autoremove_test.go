@@ -28,7 +28,7 @@ func TestAutoremovePrintsOrphans(t *testing.T) {
 	fake := &fakeManager{
 		name: model.SourcePacman, available: true,
 		orphansFn:       func() ([]string, error) { return []string{"orphan-lib"}, nil },
-		removeOrphansFn: func(o []string, yes bool) *exec.Cmd { return exec.Command("/bin/true", "-Rns", "orphan-lib") },
+		removeOrphansFn: func(o []string, yes bool) *exec.Cmd { return exec.Command("true", "-Rns", "orphan-lib") },
 	}
 	var out, errOut bytes.Buffer
 	code := Dispatch([]string{"autoremove", "--print"}, []manager.Manager{fake}, "test", &out, &errOut, nil)
@@ -45,7 +45,7 @@ func TestAutoremoveDryRun(t *testing.T) {
 	fake := &fakeManager{
 		name: model.SourcePacman, available: true,
 		orphansFn:       func() ([]string, error) { return []string{"orphan-lib"}, nil },
-		removeOrphansFn: func(o []string, yes bool) *exec.Cmd { return exec.Command("/bin/true", "-Rns", "orphan-lib") },
+		removeOrphansFn: func(o []string, yes bool) *exec.Cmd { return exec.Command("true", "-Rns", "orphan-lib") },
 	}
 	var out, errOut bytes.Buffer
 	code := Dispatch([]string{"autoremove", "--dry-run"}, []manager.Manager{fake}, "test", &out, &errOut, nil)

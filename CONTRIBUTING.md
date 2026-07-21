@@ -102,6 +102,30 @@ func (y *YourPkg) ListDependencies(pkgs []model.Package) map[string][]string {
 
 If the tool requires root, use `privilegedCmd` instead of `exec.Command` for upgrade, remove, and install commands. This wraps with `sudo -S` on Unix and is a pass-through on Windows.
 
+## Adding a read-only discovery provider
+
+PATH and catalog discovery does not belong in `internal/manager/`. Add a
+provider under `internal/inventory/` instead:
+
+```go
+type Provider interface {
+    ID() string
+    Available() bool
+    Scan(context.Context) ([]Record, error)
+}
+```
+
+Discovery providers must be read-only. A scan must not execute a discovered
+binary, mutate the filesystem, or implement package mutation interfaces. Add
+fixture tests for PATH precedence, symlinks, executable scripts, malformed
+catalog entries, path-aware metadata joins, and cache round trips. Catalog
+metadata must enter through a generic manifest; do not add personal paths or
+private descriptions to upstream code.
+
+Use the explicit `gpk tools` namespace for new command records. Do not register
+discovery providers in `manager.All()`, change `model.Package.Key()`, or route
+them through the existing bareword install fallback.
+
 ### 3. Register it
 
 Four files need a one-line addition each:
@@ -167,6 +191,7 @@ package-b 2.3.1`
 go build ./cmd/gpk
 go vet ./...
 go test ./...
+go test ./internal/inventory/... ./internal/cli/... ./internal/ui/...
 ```
 
 ## Git hooks

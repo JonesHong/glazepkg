@@ -27,7 +27,7 @@ func TestCleanDryRun(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	fake := &fakeManager{
 		name: model.SourcePacman, available: true,
-		cleanCacheFn: func(all, yes bool) *exec.Cmd { return exec.Command("/bin/true", "clean") },
+		cleanCacheFn: func(all, yes bool) *exec.Cmd { return exec.Command("true", "clean") },
 	}
 	var out, errOut bytes.Buffer
 	code := Dispatch([]string{"clean", "--dry-run"}, []manager.Manager{fake}, "test", &out, &errOut, nil)

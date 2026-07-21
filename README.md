@@ -153,6 +153,9 @@ gpk export -o pkgs.json   # back up everything installed
 gpk import pkgs.json      # restore it on another machine (skips installed)
 gpk -Qi foo               # info    ·  gpk -Q lists everything installed
 gpk why openssl           # what depends on it (is it safe to remove?)
+gpk tools                 # read-only PATH/self-made CLI browser
+gpk tools search agent    # search names, purposes, tags, examples, and paths
+gpk tools info my-cli     # inspect provenance and availability
 ```
 
 When a package exists in more than one manager, gpk lists them with versions and
@@ -184,6 +187,28 @@ so the interactive `--install` picker means the same thing in either order.
 
 Output is colored to match your theme on a terminal and falls back to plain text
 when piped. Run `gpk --help` for the full command and flag reference.
+
+### Read-only CLI inventory
+
+`gpk tools` is a separate discovery plane for commands that are not package
+records. It scans the effective `PATH` without running any discovered command,
+keeps the first executable for a duplicate name, and records shadowed locations
+for inspection. System directories are hidden by default; use
+`--include-system` when you need them.
+
+```bash
+gpk tools list --json --no-cache
+gpk tools search productivity --json
+gpk tools info workshop:station/example
+gpk tools list --catalog ./example-inventory.json
+GPK_INVENTORY_CATALOG=~/.config/glazepkg/inventory.json gpk tools
+```
+
+The catalog format accepts `schema_version: 1` with `executables` and
+`workshop_entrypoints` arrays. `packages` entries are ignored by the command
+inventory adapter because package-manager records remain owned by the existing
+GPK package plane. Catalog records are always read-only: `gpk tools` never
+offers install, upgrade, remove, hold, or automatic `--help` execution.
 
 ### Shell completion
 

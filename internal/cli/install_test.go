@@ -22,8 +22,8 @@ func installFakeMgrs() []manager.Manager {
 			return nil, nil
 		},
 		installCmdFn: func(name string) *exec.Cmd {
-			// Use /bin/true so the test "install" succeeds without side effects.
-			return exec.Command("/bin/true", "install", name)
+			// Use the portable true command so the test succeeds without side effects.
+			return exec.Command("true", "install", name)
 		},
 	}
 	brew := &fakeManager{
@@ -35,7 +35,7 @@ func installFakeMgrs() []manager.Manager {
 			return nil, nil
 		},
 		installCmdFn: func(name string) *exec.Cmd {
-			return exec.Command("/bin/true", "install", name)
+			return exec.Command("true", "install", name)
 		},
 	}
 	return []manager.Manager{pacman, brew}
@@ -132,7 +132,7 @@ func TestInstallPickVersionNonInteractive(t *testing.T) {
 			return []model.Package{{Name: "foo", Source: model.SourcePacman}}, nil
 		},
 		versionsFn:       func(string) ([]string, error) { return []string{"1.0", "2.0"}, nil },
-		installVersionFn: func(n, v string) *exec.Cmd { return exec.Command("/bin/true", n, v) },
+		installVersionFn: func(n, v string) *exec.Cmd { return exec.Command("true", n, v) },
 	}
 	var out, errOut bytes.Buffer
 	// No TTY in tests, so --pick-version can't prompt and asks for an explicit one.
@@ -180,7 +180,7 @@ func (i installerOnly) Name() model.Source             { return i.src }
 func (i installerOnly) Available() bool                { return true }
 func (i installerOnly) Scan() ([]model.Package, error) { return nil, nil }
 func (i installerOnly) InstallCmd(name string) *exec.Cmd {
-	return exec.Command("/bin/true", "install", name)
+	return exec.Command("true", "install", name)
 }
 
 func TestInstallExplicitNonSearchableManager(t *testing.T) {
