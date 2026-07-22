@@ -6,14 +6,18 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/neur0map/glazepkg/internal/inventory"
 	"github.com/neur0map/glazepkg/internal/model"
 )
 
 type tabItem struct {
-	Label  string
-	Source string // "" means ALL excluding hidden sources; specific source filters to that
-	Count  int
+	Label     string
+	Source    string // package source, or localCommandsTabSource for the inventory tab
+	Count     int
+	Inventory bool
 }
+
+const localCommandsTabSource = "__local_commands__"
 
 // hiddenFromAllSources are visible in their own tab but omitted from ALL.
 var hiddenFromAllSources = map[model.Source]bool{
@@ -94,6 +98,24 @@ func buildTabs(pkgs []model.Package) []tabItem {
 		}
 	}
 
+	return tabs
+}
+
+// buildUnifiedTabs is the P4 tab contract: local commands are always first,
+// followed by only the package-manager sources that have records. The legacy
+// buildTabs helper remains for package-only rendering tests and callers that
+// still need the ALL view semantics.
+func buildUnifiedTabs(pkgs []model.Package, local []inventory.Record) []tabItem {
+	tabs := []tabItem{{
+		Label:     "本地命令",
+		Source:    localCommandsTabSource,
+		Count:     len(local),
+		Inventory: true,
+	}}
+
+	for _, tab := range buildTabs(pkgs)[1:] {
+		tabs = append(tabs, tab)
+	}
 	return tabs
 }
 

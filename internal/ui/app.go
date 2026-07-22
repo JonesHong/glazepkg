@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/neur0map/glazepkg/internal/config"
+	"github.com/neur0map/glazepkg/internal/inventory"
 	"github.com/neur0map/glazepkg/internal/manager"
 	"github.com/neur0map/glazepkg/internal/model"
 	"github.com/neur0map/glazepkg/internal/snapshot"
@@ -31,6 +32,8 @@ const (
 	viewDetail
 	viewDiff
 	viewSearch
+	viewUnifiedSearch
+	viewLocalDetail
 )
 
 // Size filter thresholds (in bytes).
@@ -71,6 +74,11 @@ type scanManagerDoneMsg struct {
 	source model.Source
 	pkgs   []model.Package
 	err    error
+}
+
+type localInventoryDoneMsg struct {
+	records []inventory.Record
+	err     error
 }
 
 // titleTickMsg advances the title typewriter animation by one character.
@@ -228,10 +236,13 @@ type Model struct {
 	statusMsg    string
 
 	// Detail
-	detailPkg   model.Package
-	editingDesc bool
-	descInput   textinput.Model
-	userNotes   map[string]string
+	detailPkg     model.Package
+	detailReturn  view
+	pendingDetail model.Package
+	localDetail   inventory.Record
+	editingDesc   bool
+	descInput     textinput.Model
+	userNotes     map[string]string
 
 	// Diff
 	currentDiff model.Diff
@@ -241,6 +252,19 @@ type Model struct {
 	filterInput textinput.Model
 	filtering   bool
 	sizeFilter  int // 0=all, cycles through sizeFilterLabels
+
+	// Local command inventory is a separate read-only plane. It never enters
+	// allPkgs, package snapshots, or package mutation handlers.
+	localConfig   inventory.Config
+	localRecords  []inventory.Record
+	localFiltered []inventory.Record
+	localLoading  bool
+	localErr      error
+
+	// Unified search results intentionally keep local commands ahead of
+	// package-manager records while preserving each plane's own identity.
+	unifiedResults []unifiedSearchResult
+	unifiedCursor  int
 
 	// Multi-select
 	multiSelect     bool
@@ -407,6 +431,8 @@ func NewModel(version string) Model {
 		progress:      pr,
 		view:          viewList,
 		scanning:      true,
+		localConfig:   defaultInventoryConfig(),
+		localLoading:  true,
 		descCache:     manager.NewDescriptionCache(),
 		updateCache:   manager.NewUpdateCache(),
 		depsCache:     manager.NewDepsCache(),
@@ -416,7 +442,7 @@ func NewModel(version string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, loadOrScan, checkForUpdate(m.version), titleTick())
+	return tea.Batch(m.spinner.Tick, loadOrScan, loadLocalInventory(m.localConfig, false), checkForUpdate(m.version), titleTick())
 }
 
 func checkForUpdate(currentVersion string) tea.Cmd {
@@ -671,8 +697,12 @@ func (m *Model) upgradeDetailPackage() tea.Cmd {
 	return m.openModal(ModalConfirmUpgrade)
 }
 
-// activeTabSource returns the manager source of the active tab, or "" (ALL).
+// activeTabSource returns the manager source of the active package tab. The
+// local-command tab intentionally returns empty because it has no manager.
 func (m *Model) activeTabSource() model.Source {
+	if m.isLocalTab() {
+		return ""
+	}
 	if m.activeTab >= 0 && m.activeTab < len(m.tabs) {
 		return model.Source(m.tabs[m.activeTab].Source)
 	}
@@ -798,7 +828,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case spinner.TickMsg:
-		if m.scanning || m.loadingDescs || m.loadingUpdates || m.loadingDeps || m.upgradeInFlight || m.removeInFlight || m.searchActive {
+		if m.scanning || m.localLoading || m.loadingDescs || m.loadingUpdates || m.loadingDeps || m.upgradeInFlight || m.removeInFlight || m.searchActive {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
@@ -907,6 +937,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleSearchResult(msg)
 		return m, nil
 
+	case localInventoryDoneMsg:
+		m.localLoading = false
+		m.localErr = msg.err
+		if msg.err == nil {
+			m.localRecords = msg.records
+			m.statusMsg = fmt.Sprintf("local commands ready — %d commands", len(msg.records))
+		} else {
+			m.localRecords = nil
+			m.statusMsg = "local inventory error: " + msg.err.Error()
+		}
+		m.tabs = buildUnifiedTabs(m.allPkgs, m.localRecords)
+		m.applyFilter()
+		return m, nil
+
 	case batchProgressMsg:
 		return m.handleBatchProgress(msg)
 
@@ -958,7 +1002,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		m.allPkgs = next
 		manager.SaveScanCache(m.allPkgs)
-		m.tabs = buildTabs(m.allPkgs)
+		m.tabs = buildUnifiedTabs(m.allPkgs, m.localRecords)
 		m.applyFilter()
 		m.statusMsg = fmt.Sprintf("refreshed %s packages", msg.source)
 		return m, nil
@@ -1033,7 +1077,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.allPkgs[i].Description = note
 			}
 		}
-		m.tabs = buildTabs(m.allPkgs)
+		m.tabs = buildUnifiedTabs(m.allPkgs, m.localRecords)
 		m.applyFilter()
 		switch {
 		case msg.fromCache:
@@ -1128,15 +1172,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMsg = "detail error: " + msg.err.Error()
 			return m, nil
 		}
-		// Carry over LatestVersion and Source from the list entry,
-		// since QueryDetail always returns Source=pacman even for AUR.
-		if m.cursor < len(m.filteredPkgs) {
-			listPkg := m.filteredPkgs[m.cursor]
-			if listPkg.Name == msg.pkg.Name {
-				msg.pkg.LatestVersion = listPkg.LatestVersion
-				msg.pkg.Source = listPkg.Source
-			}
+		// Carry over LatestVersion and Source from the originating list entry,
+		// since QueryDetail always returns Source=pacman even for AUR. Unified
+		// search stores its originating package explicitly because its cursor is
+		// not the package-list cursor.
+		listPkg := m.pendingDetail
+		if listPkg.Name == "" && m.cursor < len(m.filteredPkgs) {
+			listPkg = m.filteredPkgs[m.cursor]
 		}
+		if listPkg.Name == msg.pkg.Name {
+			msg.pkg.LatestVersion = listPkg.LatestVersion
+			msg.pkg.Source = listPkg.Source
+		}
+		m.pendingDetail = model.Package{}
 		m.detailPkg = msg.pkg
 		m.view = viewDetail
 		return m, nil
@@ -1168,7 +1216,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.filtering {
 		var cmd tea.Cmd
 		m.filterInput, cmd = m.filterInput.Update(msg)
-		m.applyFilter()
+		if m.view == viewUnifiedSearch {
+			m.applyUnifiedSearch()
+		} else {
+			m.applyFilter()
+		}
 		return m, cmd
 	}
 
@@ -1251,7 +1303,11 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.filtering = false
 			m.filterInput.Blur()
 			m.filterInput.SetValue("")
-			m.applyFilter()
+			if m.view == viewUnifiedSearch {
+				m.applyUnifiedSearch()
+			} else {
+				m.applyFilter()
+			}
 			return m, nil
 		case "enter":
 			m.filtering = false
@@ -1279,12 +1335,19 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDiffKey(key)
 	case viewSearch:
 		return m.handleSearchKey(msg)
+	case viewUnifiedSearch:
+		return m.handleUnifiedSearchKey(key)
+	case viewLocalDetail:
+		return m.handleLocalDetailKey(key)
 	}
 
 	return m, nil
 }
 
 func (m *Model) handleListKey(key string) (tea.Model, tea.Cmd) {
+	if m.isLocalTab() {
+		return m.handleLocalListKey(key)
+	}
 	switch key {
 	case "q":
 		if m.upgradeInFlight || m.removeInFlight {
@@ -1302,9 +1365,7 @@ func (m *Model) handleListKey(key string) (tea.Model, tea.Cmd) {
 			m.applyFilter()
 		}
 	case "/", "ctrl+f":
-		m.filtering = true
-		m.filterInput.Focus()
-		return m, textinput.Blink
+		return m, m.enterUnifiedSearch()
 	case "?", "h":
 		return m, m.openModal(ModalHelp)
 	case "tab":
@@ -1375,10 +1436,13 @@ func (m *Model) handleListKey(key string) (tea.Model, tea.Cmd) {
 		if len(m.filteredPkgs) > 0 && m.cursor < len(m.filteredPkgs) {
 			pkg := m.filteredPkgs[m.cursor]
 			if pkg.Source == model.SourcePacman || pkg.Source == model.SourceAUR {
+				m.pendingDetail = pkg
+				m.detailReturn = viewList
 				return m, loadDetail(pkg.Name)
 			}
 			// For non-pacman, show what we have
 			m.detailPkg = pkg
+			m.detailReturn = viewList
 			m.view = viewDetail
 		}
 	case "f":
@@ -1463,7 +1527,7 @@ func (m *Model) findPackageByName(name string) (model.Package, bool) {
 func (m *Model) handleDetailKey(key string) (tea.Model, tea.Cmd) {
 	switch key {
 	case "esc", "q":
-		m.view = viewList
+		m.view = m.detailReturn
 	case "e":
 		m.editingDesc = true
 		m.descInput.SetValue(m.detailPkg.Description)
@@ -1543,6 +1607,12 @@ func (m *Model) refreshInputStyles() {
 }
 
 func (m *Model) applyFilter() {
+	if m.isLocalTab() {
+		m.localFiltered = rankLocalRecords(m.localRecords, m.filterInput.Value())
+		m.filteredPkgs = nil
+		m.calculateLocalScroll()
+		return
+	}
 	source := ""
 	if m.activeTab < len(m.tabs) {
 		source = m.tabs[m.activeTab].Source
@@ -1622,7 +1692,7 @@ func (m Model) View() string {
 	// Title bar — detail and search views render their own title inside their
 	// render function so the title, panel, and keybinds stay grouped together
 	// as one centered block.
-	if m.view != viewDetail && m.view != viewSearch {
+	if m.view != viewDetail && m.view != viewSearch && m.view != viewUnifiedSearch && m.view != viewLocalDetail {
 		b.WriteString(m.renderHeader())
 		b.WriteString("\n")
 	}
@@ -1636,6 +1706,10 @@ func (m Model) View() string {
 		b.WriteString(renderDiffView(m.currentDiff, m.diffSince))
 	case viewSearch:
 		b.WriteString(m.renderSearchView())
+	case viewUnifiedSearch:
+		b.WriteString(renderUnifiedSearchView(m))
+	case viewLocalDetail:
+		b.WriteString(renderInventoryRecordDetail(m.localDetail, m.statusMsg))
 	}
 
 	// Batch progress log
@@ -1684,8 +1758,8 @@ func (m Model) View() string {
 	// views to avoid duplicate hints — but still show m.statusMsg if one is
 	// set, otherwise transient messages (operation errors, progress) silently
 	// disappear while the user is looking at a package detail or search.
-	showKeybinds := m.view != viewDetail && m.view != viewSearch
-	if showKeybinds || m.statusMsg != "" {
+	showKeybinds := m.view != viewDetail && m.view != viewSearch && m.view != viewUnifiedSearch && m.view != viewLocalDetail
+	if showKeybinds || (m.statusMsg != "" && m.view != viewLocalDetail) {
 		b.WriteString("\n")
 		b.WriteString(StyleDim.Render("  " + strings.Repeat("─", min(m.width-4, 120))))
 		b.WriteString("\n")
@@ -1731,6 +1805,27 @@ func (m Model) renderListView(b *strings.Builder) {
 		panelContent.WriteString(StyleFilterPrompt.Render("/ "))
 		panelContent.WriteString(StyleFilterText.Render(m.filterInput.Value()))
 		panelContent.WriteString("\n")
+	}
+
+	// The local-command tab is available independently of the slower package
+	// manager scan. This makes the user's own commands useful immediately
+	// while the package tabs continue loading in the background.
+	if m.isLocalTab() {
+		panelContent.WriteString("\n")
+		switch {
+		case m.localLoading:
+			panelContent.WriteString(lipgloss.PlaceHorizontal(innerW, lipgloss.Center, m.spinner.View()+" Scanning local commands..."))
+		case m.localErr != nil:
+			panelContent.WriteString(StyleRemoved.Render("Local inventory failed: " + m.localErr.Error()))
+		default:
+			panelContent.WriteString(strings.Join(renderInventoryTable(m.localFiltered, m.cursor, innerW+2, m.tableHeight), "\n"))
+		}
+		if m.scanning {
+			panelContent.WriteString("\n")
+			panelContent.WriteString(lipgloss.PlaceHorizontal(innerW, lipgloss.Center, StyleDim.Render("Package manager tabs are still scanning...")))
+		}
+		b.WriteString(renderOuterPanel(panelContent.String(), outerMaxW, m.width))
+		return
 	}
 
 	// Scanning indicator. Live scans show a progress bar driven by

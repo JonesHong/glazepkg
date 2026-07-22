@@ -153,7 +153,8 @@ gpk export -o pkgs.json   # back up everything installed
 gpk import pkgs.json      # restore it on another machine (skips installed)
 gpk -Qi foo               # info    ·  gpk -Q lists everything installed
 gpk why openssl           # what depends on it (is it safe to remove?)
-gpk tools                 # read-only PATH/self-made CLI browser
+gpk                       # unified TUI: local commands first, package managers after
+gpk tools                 # same unified TUI in a terminal; headless when piped/with a subcommand
 gpk tools search agent    # search names, purposes, tags, examples, and paths
 gpk tools info my-cli     # inspect provenance and availability
 ```
@@ -190,18 +191,25 @@ when piped. Run `gpk --help` for the full command and flag reference.
 
 ### Read-only CLI inventory
 
-`gpk tools` is a separate discovery plane for commands that are not package
-records. It scans the effective `PATH` without running any discovered command,
-keeps the first executable for a duplicate name, and records shadowed locations
-for inspection. System directories are hidden by default; use
-`--include-system` when you need them.
+`gpk tools` is the headless namespace for the read-only discovery plane; in a
+terminal, both `gpk` and bare `gpk tools` open the same unified TUI. Its first
+tab is `本地命令` (effective `PATH` plus catalog), followed by detected package
+manager tabs. `/` searches both planes together, ranking self-made/Workshop
+commands before other local commands and package records.
+
+The local tab scans the effective `PATH` without running any discovered
+command, keeps the first executable for a duplicate name, and records shadowed
+locations for inspection. System directories are hidden by default; use
+`--include-system` when you need them. Local command detail is always
+read-only; package tabs retain their existing install, upgrade, and remove
+actions.
 
 ```bash
 gpk tools list --json --no-cache
 gpk tools search productivity --json
 gpk tools info workshop:station/example
 gpk tools list --catalog ./example-inventory.json
-GPK_INVENTORY_CATALOG=~/.config/glazepkg/inventory.json gpk tools
+GPK_INVENTORY_CATALOG=~/.config/glazepkg/inventory.json gpk
 ```
 
 The catalog format accepts `schema_version: 1` with `executables` and

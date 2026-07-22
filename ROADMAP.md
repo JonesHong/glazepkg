@@ -63,11 +63,12 @@ Still on the list, roughly in order:
 
 2. **Proper nix support.** On NixOS, installing should add the package to your configuration and rebuild, which is how NixOS is meant to work, with a quick way to just try something without keeping it. The current method uses an older command that does not fit flake-based systems. The compatibility table is also out of date for nix and needs to match the code.
 
-The command inventory is deliberately a separate read-only plane. It scans the
-effective PATH, joins optional catalog metadata by path, and shares GPK's TUI
-visual language without inheriting package install/remove actions. navi/tldr
-integration and automatic command help probing remain future work until they
-have bounded execution and cancellation.
+The command inventory is deliberately a separate read-only data plane, but it
+now lives inside the same GPK TUI: `本地命令` is the first tab, package-manager
+tabs follow, and `/` searches both with self-made commands first. Local detail
+cannot mutate or execute a command; package tabs retain install/remove/upgrade.
+navi/tldr integration and automatic command help probing remain future work
+until they have bounded execution and cancellation.
 
 ## Familiar commands
 

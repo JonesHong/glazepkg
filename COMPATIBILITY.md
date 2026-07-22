@@ -28,7 +28,7 @@ Every operation `gpk` exposes maps to one Go interface in `internal/manager/`. A
 | Remove non-interactive | _(uses modal)_ | `gpk remove --yes` | `NonInteractiveRemover` *(see note)* | 5 / 43 explicit |
 | Remove + deps | remove modal "deep" option | `gpk remove --with-deps` | `DeepRemover` | 4 / 43 (pacman, apt, dnf, xbps) |
 | Snapshots / diff / export | `s` / `d` / `e` | _(TUI-only in Phase 1)_ | filesystem (no manager interface) | universal |
-| Fuzzy filter | `/` over the table | _(implicit via `gpk list` + pipe)_ | client-side | universal |
+| Unified fuzzy search | `/` across local commands and active package data | _(implicit via `gpk list` + pipe)_ | client-side, local-first | universal |
 | Theme picker | `t` | _(N/A)_ | reads `~/.config/glazepkg/themes/*.toml` | universal |
 | User notes (custom descriptions) | `e` in detail | _(TUI-only in Phase 1)_ | persists to `~/.local/share/glazepkg/notes.json` | universal |
 
@@ -45,9 +45,10 @@ mutation capabilities.
 | `catalog` | cross-platform JSON | ✓ | ─ | ─ | merged into inventory cache |
 
 The PATH provider uses first-wins precedence. Catalog metadata joins only by
-normalized location; name-only joins are rejected. Use `gpk tools list --json`
-or `gpk tools info <name> --json` to inspect `kind`, `provider`, `origin`,
-`location`, `available`, `examples`, and `tags`.
+normalized location; name-only joins are rejected. In the unified TUI, the
+inventory is the first `本地命令` tab and package-manager tabs follow it; use
+`gpk tools list --json` or `gpk tools info <name> --json` for headless access to
+`kind`, `provider`, `origin`, `location`, `available`, `examples`, and `tags`.
 
 **Note on `--yes`:** the headless `--yes` flag works correctly for **all 38 manager-capable tools** even though only 5 implement the explicit `NonInteractive*` interfaces. The other 33 either don't prompt by default (brew, cargo, npm, etc.) or already include their non-interactive flag in the regular command (apt has `-y` baked in, winget has `--disable-interactivity`, etc.). The 5 with explicit `*Yes` variants are the ones whose standard command does prompt: **pacman, aur, apt, dnf, chocolatey**.
 

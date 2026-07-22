@@ -65,6 +65,9 @@ func (m Model) renderSummary() string {
 	dot := dim.Render(" · ")
 
 	out := accent.Render(fmt.Sprintf("%d", len(managersSeen))) + dim.Render(" managers")
+	if len(m.localRecords) > 0 {
+		out += dot + accent.Render(fmt.Sprintf("%d", len(m.localRecords))) + dim.Render(" local commands")
+	}
 	if updates > 0 {
 		up := lipgloss.NewStyle().Foreground(ColorYellow).Bold(true)
 		out += dot + up.Render(fmt.Sprintf("↑ %d updates", updates))
@@ -87,6 +90,12 @@ func (s statusKeys) FullHelp() [][]key.Binding { return s.full }
 func (m Model) contextKeys() statusKeys {
 	switch m.view {
 	case viewList:
+		if m.isLocalTab() {
+			return statusKeys{
+				short: []key.Binding{Keys.Filter, Keys.Tab, Keys.Enter, Keys.Rescan, Keys.Theme, Keys.Help, Keys.Quit},
+				full:  [][]key.Binding{{Keys.Up, Keys.Down, Keys.PageUp, Keys.PageDown, Keys.Home, Keys.End}, {Keys.Filter, Keys.Tab, Keys.Enter, Keys.Rescan}, {Keys.Theme, Keys.Help, Keys.Quit}},
+			}
+		}
 		if m.multiSelect {
 			return statusKeys{
 				short: []key.Binding{
@@ -150,6 +159,12 @@ func (m Model) contextKeys() statusKeys {
 			navigateKey(), expandKey(), Keys.Install, Keys.PreRelease, newSearchKey(), Keys.Back,
 		}
 		return statusKeys{short: short, full: [][]key.Binding{short}}
+
+	case viewUnifiedSearch:
+		return statusKeys{short: []key.Binding{navigateKey(), Keys.Enter, Keys.Filter, Keys.Back, Keys.Quit}}
+
+	case viewLocalDetail:
+		return statusKeys{short: []key.Binding{Keys.Back, Keys.Quit}}
 	}
 	return statusKeys{}
 }
